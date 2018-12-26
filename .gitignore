@@ -1,0 +1,12 @@
+.gradle
+.idea
+*.iml
+out
+build
+deploy
+logs
+LOG
+target
+diskTmp
+LOG_PATH_IS_UNDEFINED
+upload-sdk.log.*

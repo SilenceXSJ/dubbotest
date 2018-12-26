@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://code.alibabatech.com/schema/dubbo"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+    http://www.springframework.org/schema/beans/spring-beans.xsd
+    http://code.alibabatech.com/schema/dubbo
+    http://code.alibabatech.com/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+
+    <!-- provider's application name, used for tracing dependency relationship -->
+    <dubbo:application name="demo-provider"/>
+    <!-- use multicast registry center to export service -->
+    <dubbo:registry address="zookeeper://192.168.24.85:2181"/>
+    <!-- use dubbo protocol to export service on port 20880 -->
+    <dubbo:protocol name="dubbo" port="20880"/>
+
+    <!-- service implementation, as same as regular local bean -->
+    <!-- declare the service interface to be exported -->
+    <!-- service implementation, as same as regular local bean -->
+    <bean id="demoService" class="org.xsj.service.impl.DemoServiceImpl">
+      <property name="demoService2s" ref="demoService2s"/>
+    </bean>
+    <bean id="demoService2" class="org.xsj.service.impl.DemoServiceImpl2"/>
+    <!-- declare the service interface to be exported -->
+
+
+    <!-- 2. zipkin 相关的配置 -->
+    <!-- 使用 OKHttp 来发送 trace 信息到 Zipkin Server。这里的 Zipkin Server 启动在本地 -->
+    <bean id="sender" class="zipkin2.reporter.beans.OkHttpSenderFactoryBean">
+        <property name="endpoint" value="http://localhost:9411/api/v2/spans"/>
+    </bean>
+
+    <bean id="tracing" class="brave.spring.beans.TracingFactoryBean">
+        <property name="localServiceName" value="demo-service"/>
+        <property name="spanReporter">
+            <bean class="zipkin2.reporter.beans.AsyncReporterFactoryBean">
+                <property name="sender" ref="sender"/>
+                <!-- wait up to half a second for any in-flight spans on close -->
+                <property name="closeTimeout" value="500"/>
+            </bean>
+        </property>
+        <property name="currentTraceContext">
+            <bean class="brave.spring.beans.CurrentTraceContextFactoryBean">
+                <property name="scopeDecorators">
+                    <bean class="brave.context.slf4j.MDCScopeDecorator" factory-method="create"/>
+                </property>
+            </bean>
+        </property>
+    </bean>
+
+
+    <dubbo:reference id="demoService2s" check="false" interface="org.xsj.api.DemoService2" filter="tracing"/>
+
+    <dubbo:service interface="org.xsj.api.DemoService" ref="demoService" filter="tracing"/>
+    <dubbo:service id="d2" interface="org.xsj.api.DemoService2" ref="demoService2" filter="tracing"/>
+
+
+</beans>
